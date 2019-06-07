@@ -3,7 +3,7 @@ use warnings; use strict;
 use LWP::Simple;
 
 my $now_time = localtime;
-my $PATH = 'C:\Users\KuiliangLin\Document\GitHub'.
+my $PATH = 'C:\Users\KuiliangLin\Documents\GitHub'.
 			'\verilog_TS\rtl\*';
 
 print ">>> TOP => Delet .out/.vvp/.vcd!\n";
@@ -19,6 +19,6 @@ print ">>> TOP => Run vvp! $now_time \n";
 system "vvp out.vvp";
 
 print ">>> TOP => Run gtkwave! $now_time \n";
-system "gtkwave *.vcd";
+#system "gtkwave *.vcd";
 
 print ">>> TOP => All works have been done! \n\n";

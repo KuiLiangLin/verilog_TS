@@ -105,7 +105,7 @@ end
 
 always@(posedge A2D_TS_DETOK or negedge RSTn) begin
   if (!RSTn) 
-    data_1 <= #(TDH) 8'b01110000;
+    data_1 <= #(TDH) 8'b00000000;
   else if (D2A_TS_CHOPPER_CLK == 1'd1)
     data_1 <= #(TDH) A2D_TS_DOUT;
   else 
@@ -113,7 +113,7 @@ always@(posedge A2D_TS_DETOK or negedge RSTn) begin
 end
 always@(posedge A2D_TS_DETOK or negedge RSTn) begin
   if (!RSTn) 
-    data_2 <= #(TDH) 8'b01110000;
+    data_2 <= #(TDH) 8'b00000000;
   else if (D2A_TS_CHOPPER_CLK == 1'd0)
     data_2 <= #(TDH) A2D_TS_DOUT;
   else 
@@ -137,7 +137,7 @@ assign data_sum_tmp = (chop_phase == 4'd5 & A2D_TS_DETOK == 1'b0) ? {data_buf[31
                       (chop_phase == 4'd9 & A2D_TS_DETOK == 1'b0) ? {data_buf[31:16], data_buf[23:16], out_m } :
 					  (chop_phase == 4'd11 & A2D_TS_DETOK == 1'b0) ? {data_buf[31:8], out_m } :					  
 					  (chop_phase == 4'd13 & A2D_TS_DETOK == 1'b0) ? {data_buf[31:16], data_buf[15:8], out_m } :
-				      (chop_phase != 4'd4 & D2A_TS_CHOPPER_CLK == 1'b1 ) ? {data_buf[23:0], out_m } ://shift
+				      (D2A_TS_CHOPPER_CLK == 1'b1 & A2D_TS_DETOK == 1'b0 ) ? {data_buf[23:0], out_m } ://shift
 					  data_buf;
 assign in_1 = (D2A_TS_CHOPPER_CLK == 1'b1) ? data_1 : 
               (chop_phase == 4'd5 & A2D_TS_DETOK == 1'b0) ? data_buf[7:0] :
@@ -145,7 +145,7 @@ assign in_1 = (D2A_TS_CHOPPER_CLK == 1'b1) ? data_1 :
 			  (chop_phase == 4'd11 & A2D_TS_DETOK == 1'b0) ? data_buf[7:0] :			  
 			  (chop_phase == 4'd13 & A2D_TS_DETOK == 1'b0) ? data_buf[7:0] :
 			  data_1;
-assign in_2 = (D2A_TS_CHOPPER_CLK == 1'b1) ? data_1 : 
+assign in_2 = (D2A_TS_CHOPPER_CLK == 1'b1) ? data_2 : 
               (chop_phase == 4'd5 & A2D_TS_DETOK == 1'b0) ? data_buf[15:8] : 
 			  (chop_phase == 4'd9 & A2D_TS_DETOK == 1'b0) ? data_buf[15:8] : 
 			  (chop_phase == 4'd11 & A2D_TS_DETOK == 1'b0) ? data_buf[15:8] :
