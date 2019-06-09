@@ -64,7 +64,7 @@ begin
 
 
 	$display("===all done");
-	#1000000 $finish;
+	#5000000 $finish;
 end
 
 always begin

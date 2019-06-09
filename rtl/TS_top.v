@@ -11,11 +11,11 @@ module TS_top
   ,input  wire       reg_ts_chopper_clk_sel
   ,input  wire [3:0] reg_offset  
   
-  ,output wire        D2A_TS_EN
+  ,output wire       D2A_TS_EN
   ,output reg        D2A_TS_START_EN
   ,output reg        D2A_TS_CLK
   ,output reg        D2A_TS_CHOPPER_CLK
-  ,output reg  [3:0] ts_out
+  ,output wire [3:0] ts_out
 );
 parameter TDH = 1;
 
@@ -24,10 +24,15 @@ reg  [4:0]  counter_clk;
 reg  [4:0]  counter_sta;
 reg  [7:0]  data_1;
 reg  [7:0]  data_2;
-reg  [31:0] data_buf;
+reg  [23:0] data_buf;
+reg  [7:0]  data_buf_2;
 reg  [3:0]  chop_phase;
-wire [31:0] data_sum_tmp;
+wire [24:0] data_sum_tmp;
+wire [31:0] data_sum_tmp_2;
 wire [7:0]  in_1, in_2, out_m;
+reg  [3:0]  clk_div;
+reg  [2:0]  counter_sum;
+reg         cntclk_2_div;
 
 //------------------clk_320k
 always@(posedge clk or negedge RSTn) begin
@@ -37,6 +42,12 @@ always@(posedge clk or negedge RSTn) begin
     counter_clk <= #(TDH) 5'd0;
   else
     counter_clk <= #(TDH) counter_clk + 5'd1;
+end
+always@(posedge clk or negedge RSTn) begin
+  if (!RSTn) 
+    clk_div <= #(TDH) 4'd0;
+  else
+    clk_div <= #(TDH) clk_div + 5'd1;
 end
 /*
 reg clk_320k;
@@ -72,7 +83,7 @@ always@(posedge clk or negedge RSTn) begin
     D2A_TS_START_EN <= #(TDH) D2A_TS_START_EN;
 end
 //-------------------ts en
-assign D2A_TS_EN = reg_ts_en_sel ? FLOCK : 1'b1;
+assign #(TDH) D2A_TS_EN = reg_ts_en_sel ? FLOCK : 1'b1;
 //---------------------chopper
 always@(posedge clk or negedge RSTn) begin
   if (!RSTn) 
@@ -120,38 +131,68 @@ always@(posedge A2D_TS_DETOK or negedge RSTn) begin
     data_2 <= #(TDH) data_2;
 end
 
-wire rstn_data_tmp = RSTn & ~(D2A_TS_START_EN & (chop_phase == 4'd0));
-wire clk_data_tmp_gate = D2A_TS_CLK & ( A2D_TS_DETOK == 1'b1);
+wire #(TDH) rstn_data_tmp = RSTn & ~(D2A_TS_START_EN & (chop_phase == 4'd0));
+wire #(TDH) clk_data_tmp_gate = D2A_TS_CLK & ( counter_sta == 5'd19);
 always@(posedge clk_data_tmp_gate or negedge rstn_data_tmp) begin
   if (!rstn_data_tmp) 
-    data_buf <= #(TDH) 32'd0;
-//  else if (A2D_TS_DETOK == 1'b1)
-//    data_buf <= #(TDH) data_sum_tmp;
+    data_buf <= #(TDH) 24'd0;
   else
     data_buf <= #(TDH) data_sum_tmp;
-
 end
 
-a_mean_b a_mean_b(.in_1(in_1),.in_2(in_2),.out_m(out_m));
-assign data_sum_tmp = (chop_phase == 4'd5 & A2D_TS_DETOK == 1'b0) ? {data_buf[31:8], out_m } :
-                      (chop_phase == 4'd9 & A2D_TS_DETOK == 1'b0) ? {data_buf[31:16], data_buf[23:16], out_m } :
-					  (chop_phase == 4'd11 & A2D_TS_DETOK == 1'b0) ? {data_buf[31:8], out_m } :					  
-					  (chop_phase == 4'd13 & A2D_TS_DETOK == 1'b0) ? {data_buf[31:16], data_buf[15:8], out_m } :
-				      (D2A_TS_CHOPPER_CLK == 1'b1 & A2D_TS_DETOK == 1'b0 ) ? {data_buf[23:0], out_m } ://shift
-					  data_buf;
-assign in_1 = (D2A_TS_CHOPPER_CLK == 1'b1) ? data_1 : 
-              (chop_phase == 4'd5 & A2D_TS_DETOK == 1'b0) ? data_buf[7:0] :
-			  (chop_phase == 4'd9 & A2D_TS_DETOK == 1'b0) ? data_buf[7:0] :
-			  (chop_phase == 4'd11 & A2D_TS_DETOK == 1'b0) ? data_buf[7:0] :			  
-			  (chop_phase == 4'd13 & A2D_TS_DETOK == 1'b0) ? data_buf[7:0] :
-			  data_1;
-assign in_2 = (D2A_TS_CHOPPER_CLK == 1'b1) ? data_2 : 
-              (chop_phase == 4'd5 & A2D_TS_DETOK == 1'b0) ? data_buf[15:8] : 
-			  (chop_phase == 4'd9 & A2D_TS_DETOK == 1'b0) ? data_buf[15:8] : 
-			  (chop_phase == 4'd11 & A2D_TS_DETOK == 1'b0) ? data_buf[15:8] :
-			  (chop_phase == 4'd13 & A2D_TS_DETOK == 1'b0) ? data_buf[15:8] :
-			  data_2;
+a_mean_b #(TDH) a_mean_b(.in_1(in_1),.in_2(in_2),.out_m(out_m));
+assign #(TDH) data_sum_tmp = (chop_phase == 4'd0) ? data_buf :
+                             (chop_phase == 4'd5 & A2D_TS_DETOK == 1'b1) ? {24'd0, out_m } :
+                             (chop_phase == 4'd9 & A2D_TS_DETOK == 1'b1) ? {16'd0, data_buf[23:16], out_m } :
+                             (chop_phase == 4'd11 & A2D_TS_DETOK == 1'b1) ? {16'd0, out_m, data_buf[7:0] } :					  
+                             (chop_phase == 4'd13 & A2D_TS_DETOK == 1'b1) ? {16'd0, data_buf[23:16], out_m } :
+                             (D2A_TS_CHOPPER_CLK == 1'b0 & A2D_TS_DETOK == 1'b1 ) ? {data_buf[23:0], out_m } ://shift
+                              data_buf;
+							  
+assign #(TDH) in_1 = (chop_phase == 4'd5 & A2D_TS_DETOK == 1'b1) ? data_buf[7:0] :
+			         (chop_phase == 4'd9 & A2D_TS_DETOK == 1'b1) ? data_buf[7:0] :
+			         (chop_phase == 4'd11 & A2D_TS_DETOK == 1'b1) ? data_buf[15:8] :			  
+			         (chop_phase == 4'd13 & A2D_TS_DETOK == 1'b1) ? data_buf[7:0] :
+					 (chop_phase == 4'd0 & A2D_TS_DETOK == 1'b1 & counter_sum == 3'd1) ? data_1 :
+					 (chop_phase == 4'd0 & A2D_TS_DETOK == 1'b1 & counter_sum == 3'd2) ? data_buf[7:0] :
+					 (chop_phase == 4'd0 & A2D_TS_DETOK == 1'b1 & counter_sum == 3'd3) ? data_buf[15:8] :
+                     (chop_phase == 4'd0 & A2D_TS_DETOK == 1'b1 & counter_sum == 3'd4) ? data_buf[23:16] :
+                      data_1;
+					  
+assign #(TDH) in_2 = (chop_phase == 4'd5 & A2D_TS_DETOK == 1'b1) ? data_buf[15:8] : 
+			         (chop_phase == 4'd9 & A2D_TS_DETOK == 1'b1) ? data_buf[15:8] : 
+			         (chop_phase == 4'd11 & A2D_TS_DETOK == 1'b1) ? data_buf[23:16] :
+			         (chop_phase == 4'd13 & A2D_TS_DETOK == 1'b1) ? data_buf[15:8] :
+					 (chop_phase == 4'd0 & A2D_TS_DETOK == 1'b1 & counter_sum == 3'd1) ? data_2 :
+					 (chop_phase == 4'd0 & A2D_TS_DETOK == 1'b1 & counter_sum == 3'd2) ? data_buf_2[7:0] :
+					 (chop_phase == 4'd0 & A2D_TS_DETOK == 1'b1 & counter_sum == 3'd3) ? data_buf_2[7:0] :
+					 (chop_phase == 4'd0 & A2D_TS_DETOK == 1'b1 & counter_sum == 3'd4) ? data_buf_2[7:0] :
+			          data_2;
 
+wire #(TDH) cnt_clk_2_gate = counter_clk[2] & ( chop_phase == 4'd0) & A2D_TS_DETOK == 1'b1;
+always@(posedge cnt_clk_2_gate or negedge rstn_data_tmp) begin
+  if (!rstn_data_tmp) 
+    cntclk_2_div <= #(TDH) 1'd0;
+  else
+    cntclk_2_div <= #(TDH) ~cntclk_2_div;
+end
+always@(posedge cntclk_2_div or negedge RSTn) begin
+  if (!RSTn) 
+    data_buf_2 <= #(TDH) 8'b11111110;
+  else if (counter_sum == 3'd0)
+    data_buf_2 <= #(TDH) data_buf_2;
+  else
+    data_buf_2 <= #(TDH) out_m;
+end
+always@(posedge cntclk_2_div or negedge rstn_data_tmp) begin
+  if (!rstn_data_tmp) 
+    counter_sum <= #(TDH) 3'd0;
+  else
+    counter_sum <= #(TDH) counter_sum + 3'd1;
+end
+
+
+assign #(TDH) ts_out = data_buf_2[7:4];
 
 
 endmodule
